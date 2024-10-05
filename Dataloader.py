@@ -71,8 +71,7 @@ def get_uniqe_dates(list_of_event_times):
             unique_files.append(e)
     return unique_files
 
-def prepare_data_loader(overlap, window_length, decimation_factor, spect_nfft, spect_nperseg, batch_size, data_dir, labels_file_path=None):
-
+def prepare_data_loader(overlap, window_length, decimation_factor, spect_nfft, spect_nperseg, batch_size, data_dir, labels_file_path=None, one_file=False):
     if labels_file_path is not None:
         list_of_events = pd.read_csv(labels_file_path)
         list_of_event_ids, event_data_dict = prepare_event_data_dict(list_of_events)
@@ -80,6 +79,7 @@ def prepare_data_loader(overlap, window_length, decimation_factor, spect_nfft, s
         all_labels = []
 
     all_spectrograms = []
+    dates = []
 
     list_of_files = os.listdir(data_dir)
     list_of_files = [file for file in list_of_files if file.endswith('.mseed')]
@@ -140,6 +140,7 @@ def prepare_data_loader(overlap, window_length, decimation_factor, spect_nfft, s
                 tmp_data_undersample = signal.decimate(tmp_data, decimation_factor, axis=0, zero_phase=True)
                 _, _, sxx = signal.spectrogram(tmp_data_undersample, sampling_rate/decimation_factor, nfft=spect_nfft, nperseg=spect_nperseg)
                 list_of_spectrograms.append(sxx)
+                dates.append((start_time, end_time))
 
                 if labels_file_path is not None:
                     list_of_event_labels.append(check_if_any_event_in_range(list_of_event_times_datetimes, start_time, end_time))
@@ -182,4 +183,6 @@ def prepare_data_loader(overlap, window_length, decimation_factor, spect_nfft, s
     else:
         train_dataset = utils.TensorDataset(torch.from_numpy(all_spectrograms).float())
         train_loader = utils.DataLoader(train_dataset, batch_size=batch_size, drop_last=False, shuffle=True)
+    if one_file:
+        return all_spectrograms, dates
     return train_loader
