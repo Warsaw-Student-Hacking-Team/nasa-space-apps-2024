@@ -12,10 +12,35 @@ import torch.utils.data as utils
 import torch
 import torch.nn as nn
 
-training_data_dir = './data/lunar/training/data/S12_GradeA/'
-event_list_file = './data/lunar/training/catalogs/apollo12_catalog_GradeA_final.csv'
 
-list_of_events = pd.read_csv(event_list_file)
+
+# def average_in_second_axis(data, factor):
+#     if data.shape[1] % factor == 0:
+#         return np.mean(data.reshape(data.shape[0], -1, factor), axis=2)
+#     else:
+#         num_full_groups = data.shape[1] // factor
+#         full_groups = np.mean(data[:, :num_full_groups * factor].reshape(data.shape[0], -1, factor), axis=2)
+#         remainder_group = np.mean(data[:, num_full_groups * factor:], axis=1, keepdims=True)
+#         return np.concatenate((full_groups, remainder_group), axis=1)
+
+# def apply_filter(st, minfreq, maxfreq):
+#     st_filt = st.copy()
+#     st_filt.filter('bandpass',freqmin=minfreq,freqmax=maxfreq)
+#     tr_filt = st_filt.traces[0].copy()
+#     tr_data_filt = tr_filt.data
+
+#     f, t, sxx = signal.spectrogram(tr_data_filt, tr_filt.stats.sampling_rate)
+#     return f, t, sxx
+
+# def spectrogram_plot(tr_times_filt, tr_data_filt, t, f, sxx, cm):
+#     fig = plt.figure(figsize=(6, 6))
+#     ax2 = plt.subplot(1, 1, 1)
+#     vals = ax2.pcolormesh(t, f, sxx, cmap=cm.jet, vmax=5e-17)
+#     # ax2.set_xlim([min(tr_times_filt),max(tr_times_filt)])
+#     ax2.set_xlabel(f'Time (Day Hour:Minute)', fontweight='bold')
+#     ax2.set_ylabel('Frequency (Hz)', fontweight='bold')
+#     cbar = plt.colorbar(vals, orientation='horizontal')
+#     cbar.set_label('Power ((m/s)^2/sqrt(Hz))', fontweight='bold')
 
 def prepare_event_data_dict(list_of_events):
     list_of_event_ids = []
@@ -31,21 +56,38 @@ def prepare_event_data_dict(list_of_events):
         event_data_dict[event_id] = {'filename': event_filename, 'time_abs': event_time_abs, 'time_rel': event_time_rel, 'type': event_type}
     return list_of_event_ids, event_data_dict
 
-list_of_event_ids, event_data_dict = prepare_event_data_dict(list_of_events)
-list_of_event_times_datetimes = [datetime.strptime(event_data_dict[event_id]['time_abs'], '%Y-%m-%dT%H:%M:%S.%f') for event_id in list_of_event_ids]
-
-def check_if_any_event_in_range(start_time, end_time):
+def check_if_any_event_in_range(list_of_event_times_datetimes,start_time, end_time):
     for e in list_of_event_times_datetimes:
         if e >= start_time and e <= end_time:
             return True
     return False
 
-def prepare_data_loader(overlap, window_length, decimation_factor, spect_nfft, spect_nperseg, batch_size):
-    all_spectrograms = []
-    all_labels = []
+def get_uniqe_dates(list_of_event_times):
+    unique_dates = []
+    unique_files = []
+    for e in list_of_event_times:
+        if e.split('.')[4][:10] not in unique_dates:
+            unique_dates.append(e.split('.')[4][:10])
+            unique_files.append(e)
+    return unique_files
 
-    list_of_files = os.listdir(training_data_dir)
+def prepare_data_loader(overlap, window_length, decimation_factor, spect_nfft, spect_nperseg, batch_size, data_dir, labels_file_path=None):
+
+    if labels_file_path is not None:
+        list_of_events = pd.read_csv(labels_file_path)
+        list_of_event_ids, event_data_dict = prepare_event_data_dict(list_of_events)
+        list_of_event_times_datetimes = [datetime.strptime(event_data_dict[event_id]['time_abs'], '%Y-%m-%dT%H:%M:%S.%f') for event_id in list_of_event_ids]
+        all_labels = []
+
+    all_spectrograms = []
+
+    list_of_files = os.listdir(data_dir)
     list_of_files = [file for file in list_of_files if file.endswith('.mseed')]
+    # print(len(list_of_files))
+    print(f'Starting number of files:{len(list_of_files)}')
+    list_of_files = get_uniqe_dates(list_of_files)
+    print(f'Number of uniques files:{len(list_of_files)}')
+
     tr_data = None
     for file_idx in range(len(list_of_files)):
         current_event_date = list_of_files[file_idx].split('.')[4][:10]
@@ -60,7 +102,7 @@ def prepare_data_loader(overlap, window_length, decimation_factor, spect_nfft, s
             delta = next_event_date - current_event_date
             days_difference = delta.days
 
-        mseed_file_path = f'{training_data_dir}{list_of_files[file_idx]}'
+        mseed_file_path = f'{data_dir}{list_of_files[file_idx]}'
         st = read(mseed_file_path)
 
         tr = st.traces[0].copy()
@@ -80,35 +122,50 @@ def prepare_data_loader(overlap, window_length, decimation_factor, spect_nfft, s
             iterator = 0
             samples_per_window = window_length*3600*sampling_rate
             list_of_spectrograms = []
-            list_of_event_labels = []
+            if labels_file_path is not None:
+                list_of_event_labels = []
             end_of_file = False
             while not end_of_file:
                 #start_time + window_length hours
 
                 tmp_data = tr_data[iterator:iterator+int(samples_per_window)]
+                end_time = start_time + timedelta(hours=window_length)
                 if len(tmp_data) < int(samples_per_window):
                     tmp_data = tr_data[-int(samples_per_window):]
                     end_of_file = True
 
+                if end_time > st[0].stats.endtime.datetime:
+                    end_time = st[0].stats.endtime.datetime
+
                 tmp_data_undersample = signal.decimate(tmp_data, decimation_factor, axis=0, zero_phase=True)
                 _, _, sxx = signal.spectrogram(tmp_data_undersample, sampling_rate/decimation_factor, nfft=spect_nfft, nperseg=spect_nperseg)
-
-                list_of_event_labels.append(check_if_any_event_in_range(start_time, start_time + timedelta(hours=window_length)))
                 list_of_spectrograms.append(sxx)
 
+                if labels_file_path is not None:
+                    list_of_event_labels.append(check_if_any_event_in_range(list_of_event_times_datetimes, start_time, end_time))
+                # if (check_if_any_event_in_range(list_of_event_times_datetimes, start_time, end_time)):
+                #     t, f, sxx = signal.spectrogram(tmp_data_undersample, sampling_rate/decimation_factor, nfft=spect_nfft, nperseg=spect_nperseg)
+                #     print(start_time, end_time)
+                    
                 iterator += int(overlap*3600*sampling_rate)
                 start_time = start_time + timedelta(hours=overlap)
 
             tr_data = None
             spectrograms_np_arr = np.array(list_of_spectrograms)
-            labels_np_arr = np.array(list_of_event_labels)
-            # print(spectrograms_np_arr.shape)
-
             all_spectrograms.append(spectrograms_np_arr)
-            all_labels.append(labels_np_arr)
-    all_spectrograms = np.concatenate(all_spectrograms, axis=0)
-    all_labels = np.concatenate(all_labels, axis=0)
 
-    train_dataset = utils.TensorDataset(torch.from_numpy(all_spectrograms).float(),torch.from_numpy(all_labels).bool())
+            if labels_file_path is not None:
+                labels_np_arr = np.array(list_of_event_labels)
+                all_labels.append(labels_np_arr)
+
+    all_spectrograms = np.concatenate(all_spectrograms, axis=0)
+    print(all_spectrograms.shape)
+    if labels_file_path is not None:
+        all_labels = np.concatenate(all_labels, axis=0)
+        print(all_labels.shape)
+        print(f'Number of windows with seismic event {np.sum(all_labels)}')
+        train_dataset = utils.TensorDataset(torch.from_numpy(all_spectrograms).float(),torch.from_numpy(all_labels).bool())
+    else:
+        train_dataset = utils.TensorDataset(torch.from_numpy(all_spectrograms).float())
     train_loader = utils.DataLoader(train_dataset, batch_size=batch_size, drop_last=False, shuffle=True)
     return train_loader
