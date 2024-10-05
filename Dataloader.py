@@ -160,6 +160,12 @@ def prepare_data_loader(overlap, window_length, decimation_factor, spect_nfft, s
                 all_labels.append(labels_np_arr)
 
     all_spectrograms = np.concatenate(all_spectrograms, axis=0)
+
+    #normalize spectrograms
+    print(np.min(all_spectrograms), np.max(all_spectrograms))
+    all_spectrograms = (all_spectrograms - np.mean(all_spectrograms))/np.std(all_spectrograms)
+    print(np.min(all_spectrograms), np.max(all_spectrograms))
+
     print(all_spectrograms.shape)
     if labels_file_path is not None:
         all_labels = np.concatenate(all_labels, axis=0)
