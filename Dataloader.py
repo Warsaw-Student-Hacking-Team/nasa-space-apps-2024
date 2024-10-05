@@ -12,7 +12,7 @@ import torch.utils.data as utils
 import torch
 import torch.nn as nn
 
-
+from torch.utils.data import WeightedRandomSampler
 
 # def average_in_second_axis(data, factor):
 #     if data.shape[1] % factor == 0:
@@ -165,7 +165,21 @@ def prepare_data_loader(overlap, window_length, decimation_factor, spect_nfft, s
         print(all_labels.shape)
         print(f'Number of windows with seismic event {np.sum(all_labels)}')
         train_dataset = utils.TensorDataset(torch.from_numpy(all_spectrograms).float(),torch.from_numpy(all_labels).bool())
+
+        noise_sample_weight = np.sum(all_labels)/all_labels.shape[0]
+        event_sample_weight = 1 - noise_sample_weight
+        print(f'Noise sample weight: {noise_sample_weight}')
+        print(f'Event sample weight: {event_sample_weight}')
+
+        #prepare sample weights for sampler
+        sample_weights = np.zeros(all_labels.shape[0])
+        sample_weights[all_labels] = event_sample_weight
+        sample_weights[~all_labels] = noise_sample_weight
+        sample_weights = torch.from_numpy(sample_weights).float()
+        sampler = WeightedRandomSampler(sample_weights, num_samples=len(sample_weights), replacement=True)
+        train_loader = utils.DataLoader(train_dataset, batch_size=batch_size, drop_last=False, sampler=sampler)
+
     else:
         train_dataset = utils.TensorDataset(torch.from_numpy(all_spectrograms).float())
-    train_loader = utils.DataLoader(train_dataset, batch_size=batch_size, drop_last=False, shuffle=True)
+        train_loader = utils.DataLoader(train_dataset, batch_size=batch_size, drop_last=False, shuffle=True)
     return train_loader
