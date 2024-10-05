@@ -63,12 +63,11 @@ def prepare_data_loader(overlap, window_length, decimation_factor, spect_nfft, s
         mseed_file_path = f'{training_data_dir}{list_of_files[file_idx]}'
         st = read(mseed_file_path)
 
-        start_time = st[0].stats.starttime.datetime
-        sampling_rate = st[0].stats.sampling_rate
-
         tr = st.traces[0].copy()
 
         if tr_data is None:
+            start_time = st[0].stats.starttime.datetime
+            sampling_rate = st[0].stats.sampling_rate
             tr_data = tr.data
         else:
             tr_data = np.concatenate((tr_data, tr.data))
