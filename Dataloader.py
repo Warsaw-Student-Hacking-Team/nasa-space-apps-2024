@@ -94,6 +94,7 @@ def prepare_data_loader(overlap, window_length, decimation_factor, spect_nfft, s
 
     tr_data = None
     for file_idx in range(len(list_of_files)):
+        print(list_of_files[file_idx])
         current_event_date = list_of_files[file_idx].split('.')[4][:10]
         current_event_date = datetime.strptime(current_event_date, "%Y-%m-%d")
         if file_idx == len(list_of_files) - 1:
@@ -114,6 +115,7 @@ def prepare_data_loader(overlap, window_length, decimation_factor, spect_nfft, s
         if tr_data is None:
             start_time = st[0].stats.starttime.datetime
             sampling_rate = st[0].stats.sampling_rate
+            # print(sampling_rate)
             tr_data = tr.data
         else:
             tr_data = np.concatenate((tr_data, tr.data))
@@ -141,13 +143,20 @@ def prepare_data_loader(overlap, window_length, decimation_factor, spect_nfft, s
                 if end_time > st[0].stats.endtime.datetime:
                     end_time = st[0].stats.endtime.datetime
 
+                if sampling_rate != 6.625:
+                    tmp_data = signal.resample(tmp_data, int(len(tmp_data)*6.625/sampling_rate))
+
                 tmp_data_undersample = signal.decimate(tmp_data, decimation_factor, axis=0, zero_phase=True)
-                _, _, sxx = signal.spectrogram(tmp_data_undersample, sampling_rate/decimation_factor, nfft=spect_nfft, nperseg=spect_nperseg)
+                _, _, sxx = signal.spectrogram(tmp_data_undersample, 6.625/decimation_factor, nfft=spect_nfft, nperseg=spect_nperseg)
                 list_of_spectrograms.append(sxx)
                 dates.append((start_time, end_time))
 
                 if labels_file_path is not None:
-                    label, event_type = check_if_any_event_in_range(list_of_event_times_datetimes, list_of_event_ids, event_data_dict, start_time, end_time)
+                    if 'evNONE' in list_of_files[file_idx]:
+                        label = False
+                        event_type = 'noise'
+                    else:
+                        label, event_type = check_if_any_event_in_range(list_of_event_times_datetimes, list_of_event_ids, event_data_dict, start_time, end_time)
                     list_of_event_labels.append(label)
                     list_of_event_types.append(event_name_to_id[event_type])
                 # if (check_if_any_event_in_range(list_of_event_times_datetimes, start_time, end_time)):
@@ -159,6 +168,7 @@ def prepare_data_loader(overlap, window_length, decimation_factor, spect_nfft, s
 
             tr_data = None
             spectrograms_np_arr = np.array(list_of_spectrograms)
+            spectrograms_np_arr = (spectrograms_np_arr - np.mean(spectrograms_np_arr))/np.std(spectrograms_np_arr)
             all_spectrograms.append(spectrograms_np_arr)
 
             if labels_file_path is not None:
@@ -173,7 +183,7 @@ def prepare_data_loader(overlap, window_length, decimation_factor, spect_nfft, s
 
     #normalize spectrograms
     # print(np.min(all_spectrograms), np.max(all_spectrograms))
-    all_spectrograms = (all_spectrograms - np.mean(all_spectrograms))/np.std(all_spectrograms)
+    # all_spectrograms = (all_spectrograms - np.mean(all_spectrograms))/np.std(all_spectrograms)
     # print(np.min(all_spectrograms), np.max(all_spectrograms))
 
     print(all_spectrograms.shape)
@@ -186,8 +196,8 @@ def prepare_data_loader(overlap, window_length, decimation_factor, spect_nfft, s
 
         noise_sample_weight = np.sum(all_labels)/all_labels.shape[0]
         event_sample_weight = 1 - noise_sample_weight
-        # print(f'Noise sample weight: {noise_sample_weight}')
-        # print(f'Event sample weight: {event_sample_weight}')
+        print(f'Noise sample weight: {noise_sample_weight}')
+        print(f'Event sample weight: {event_sample_weight}')
 
         #prepare sample weights for sampler
         sample_weights = np.zeros(all_labels.shape[0])
