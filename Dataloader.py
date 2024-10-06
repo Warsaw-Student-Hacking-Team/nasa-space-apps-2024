@@ -14,34 +14,6 @@ import torch.nn as nn
 
 from torch.utils.data import WeightedRandomSampler
 
-# def average_in_second_axis(data, factor):
-#     if data.shape[1] % factor == 0:
-#         return np.mean(data.reshape(data.shape[0], -1, factor), axis=2)
-#     else:
-#         num_full_groups = data.shape[1] // factor
-#         full_groups = np.mean(data[:, :num_full_groups * factor].reshape(data.shape[0], -1, factor), axis=2)
-#         remainder_group = np.mean(data[:, num_full_groups * factor:], axis=1, keepdims=True)
-#         return np.concatenate((full_groups, remainder_group), axis=1)
-
-# def apply_filter(st, minfreq, maxfreq):
-#     st_filt = st.copy()
-#     st_filt.filter('bandpass',freqmin=minfreq,freqmax=maxfreq)
-#     tr_filt = st_filt.traces[0].copy()
-#     tr_data_filt = tr_filt.data
-
-#     f, t, sxx = signal.spectrogram(tr_data_filt, tr_filt.stats.sampling_rate)
-#     return f, t, sxx
-
-# def spectrogram_plot(tr_times_filt, tr_data_filt, t, f, sxx, cm):
-#     fig = plt.figure(figsize=(6, 6))
-#     ax2 = plt.subplot(1, 1, 1)
-#     vals = ax2.pcolormesh(t, f, sxx, cmap=cm.jet, vmax=5e-17)
-#     # ax2.set_xlim([min(tr_times_filt),max(tr_times_filt)])
-#     ax2.set_xlabel(f'Time (Day Hour:Minute)', fontweight='bold')
-#     ax2.set_ylabel('Frequency (Hz)', fontweight='bold')
-#     cbar = plt.colorbar(vals, orientation='horizontal')
-#     cbar.set_label('Power ((m/s)^2/sqrt(Hz))', fontweight='bold')
-
 def prepare_event_data_dict(list_of_events):
     list_of_event_ids = []
     event_data_dict = {}
@@ -177,9 +149,6 @@ def prepare_data_loader(overlap, window_length, decimation_factor, spect_nfft, s
 
     all_spectrograms = np.concatenate(all_spectrograms, axis=0)
     all_event_types = np.array(list_of_event_types)
-
-    # print(all_spectrograms.shape)
-    # print(all_event_types.shape)
 
     #normalize spectrograms
     # print(np.min(all_spectrograms), np.max(all_spectrograms))
