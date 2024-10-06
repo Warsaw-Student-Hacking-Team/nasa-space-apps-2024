@@ -79,6 +79,7 @@ def prepare_data_loader(overlap, window_length, decimation_factor, spect_nfft, s
         all_labels = []
 
     all_spectrograms = []
+    dates = []
     list_of_event_types = []
 
     event_name_to_id = {'noise': 0, 'impact_mq': 1, 'deep_mq': 2, 'shallow_mq':3}
@@ -87,9 +88,9 @@ def prepare_data_loader(overlap, window_length, decimation_factor, spect_nfft, s
     list_of_files = os.listdir(data_dir)
     list_of_files = [file for file in list_of_files if file.endswith('.mseed')]
     # print(len(list_of_files))
-    print(f'Starting number of files:{len(list_of_files)}')
+    print(f'Starting number of files: {len(list_of_files)}')
     list_of_files = get_uniqe_dates(list_of_files)
-    print(f'Number of uniques files:{len(list_of_files)}')
+    print(f'Number of uniques files: {len(list_of_files)}')
 
     tr_data = None
     for file_idx in range(len(list_of_files)):
@@ -171,22 +172,22 @@ def prepare_data_loader(overlap, window_length, decimation_factor, spect_nfft, s
     # print(all_event_types.shape)
 
     #normalize spectrograms
-    print(np.min(all_spectrograms), np.max(all_spectrograms))
+    # print(np.min(all_spectrograms), np.max(all_spectrograms))
     all_spectrograms = (all_spectrograms - np.mean(all_spectrograms))/np.std(all_spectrograms)
-    print(np.min(all_spectrograms), np.max(all_spectrograms))
+    # print(np.min(all_spectrograms), np.max(all_spectrograms))
 
     print(all_spectrograms.shape)
     if labels_file_path is not None:
         all_labels = np.concatenate(all_labels, axis=0)
         print(all_labels.shape)
-        print(f'Number of windows with seismic event {np.sum(all_labels)}')
+        print(f'Number of windows with seismic events: {np.sum(all_labels)}')
         # train_dataset = utils.TensorDataset(torch.from_numpy(all_spectrograms).float(),torch.from_numpy(all_labels).bool())
         train_dataset = utils.TensorDataset(torch.from_numpy(all_spectrograms).float(),torch.from_numpy(all_labels).bool(), torch.from_numpy(all_event_types).int())
 
         noise_sample_weight = np.sum(all_labels)/all_labels.shape[0]
         event_sample_weight = 1 - noise_sample_weight
-        print(f'Noise sample weight: {noise_sample_weight}')
-        print(f'Event sample weight: {event_sample_weight}')
+        # print(f'Noise sample weight: {noise_sample_weight}')
+        # print(f'Event sample weight: {event_sample_weight}')
 
         #prepare sample weights for sampler
         sample_weights = np.zeros(all_labels.shape[0])
