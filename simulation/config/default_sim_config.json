@@ -1,0 +1,25 @@
+{
+  "real_time": true,
+  "sim_start_time": "1973-03-17T23:59:00.044623Z",
+  "sim_end_time": "1973-03-18T23:58:59.893680Z",
+  "rover": {
+    "port": 6000,
+    "sample_rate": 6.225,
+    "seismic_file_name": "xa.s12.00.mhz.1973-03-17HR00_evNONE.mseed"
+  },
+
+  "ground_station": {
+    "port": 6001
+  },
+
+  "connection_windows": [
+    {
+      "start": "1973-03-17T23:59:10.044623Z",
+      "end": "1973-03-17T23:59:30.044623Z"
+    },
+    {
+      "start": "1973-03-18T00:00:10.044623Z",
+      "end": "1973-03-18T00:10:30.044623Z"
+    }
+  ]
+}
