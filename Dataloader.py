@@ -56,11 +56,11 @@ def prepare_event_data_dict(list_of_events):
         event_data_dict[event_id] = {'filename': event_filename, 'time_abs': event_time_abs, 'time_rel': event_time_rel, 'type': event_type}
     return list_of_event_ids, event_data_dict
 
-def check_if_any_event_in_range(list_of_event_times_datetimes,start_time, end_time):
-    for e in list_of_event_times_datetimes:
+def check_if_any_event_in_range(list_of_event_times_datetimes, list_of_event_ids,event_data_dict, start_time, end_time):
+    for i, e in enumerate(list_of_event_times_datetimes):
         if e >= start_time and e <= end_time:
-            return True
-    return False
+            return True, event_data_dict[list_of_event_ids[i]]['type']
+    return False, 'noise'
 
 def get_uniqe_dates(list_of_event_times):
     unique_dates = []
@@ -79,7 +79,10 @@ def prepare_data_loader(overlap, window_length, decimation_factor, spect_nfft, s
         all_labels = []
 
     all_spectrograms = []
-    dates = []
+    list_of_event_types = []
+
+    event_name_to_id = {'noise': 0, 'impact_mq': 1, 'deep_mq': 2, 'shallow_mq':3}
+
 
     list_of_files = os.listdir(data_dir)
     list_of_files = [file for file in list_of_files if file.endswith('.mseed')]
@@ -143,7 +146,9 @@ def prepare_data_loader(overlap, window_length, decimation_factor, spect_nfft, s
                 dates.append((start_time, end_time))
 
                 if labels_file_path is not None:
-                    list_of_event_labels.append(check_if_any_event_in_range(list_of_event_times_datetimes, start_time, end_time))
+                    label, event_type = check_if_any_event_in_range(list_of_event_times_datetimes, list_of_event_ids, event_data_dict, start_time, end_time)
+                    list_of_event_labels.append(label)
+                    list_of_event_types.append(event_name_to_id[event_type])
                 # if (check_if_any_event_in_range(list_of_event_times_datetimes, start_time, end_time)):
                 #     t, f, sxx = signal.spectrogram(tmp_data_undersample, sampling_rate/decimation_factor, nfft=spect_nfft, nperseg=spect_nperseg)
                 #     print(start_time, end_time)
@@ -160,6 +165,10 @@ def prepare_data_loader(overlap, window_length, decimation_factor, spect_nfft, s
                 all_labels.append(labels_np_arr)
 
     all_spectrograms = np.concatenate(all_spectrograms, axis=0)
+    all_event_types = np.array(list_of_event_types)
+
+    # print(all_spectrograms.shape)
+    # print(all_event_types.shape)
 
     #normalize spectrograms
     print(np.min(all_spectrograms), np.max(all_spectrograms))
@@ -171,7 +180,8 @@ def prepare_data_loader(overlap, window_length, decimation_factor, spect_nfft, s
         all_labels = np.concatenate(all_labels, axis=0)
         print(all_labels.shape)
         print(f'Number of windows with seismic event {np.sum(all_labels)}')
-        train_dataset = utils.TensorDataset(torch.from_numpy(all_spectrograms).float(),torch.from_numpy(all_labels).bool())
+        # train_dataset = utils.TensorDataset(torch.from_numpy(all_spectrograms).float(),torch.from_numpy(all_labels).bool())
+        train_dataset = utils.TensorDataset(torch.from_numpy(all_spectrograms).float(),torch.from_numpy(all_labels).bool(), torch.from_numpy(all_event_types).int())
 
         noise_sample_weight = np.sum(all_labels)/all_labels.shape[0]
         event_sample_weight = 1 - noise_sample_weight
